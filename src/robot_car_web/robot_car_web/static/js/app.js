@@ -40,7 +40,7 @@
   const Servo = {
     pan:      cfg.servo_pan  ?? 90,
     tilt:     cfg.servo_tilt ?? 90,
-    STEP:     45,
+    STEP:     30,
     PAN_MIN:  0,   PAN_MAX:  180,
     TILT_MIN: 45,  TILT_MAX: 135,
 
