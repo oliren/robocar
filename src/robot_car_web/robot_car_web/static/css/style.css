@@ -77,6 +77,15 @@ body {
   font-family: monospace;
 }
 
+.cam-meta {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 /* ── Tabs ── */
 .tabs {
   display: flex;
@@ -221,15 +230,20 @@ input[type="range"] {
 }
 .servo-val { color: #79c0ff; }
 
+/* Camera servo d-pad — compact overlay on the stream (bottom-right) */
 .cam-dpad {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 2;
   display: grid;
   grid-template-areas:
     ".   up  ."
     "lft ctr rgt"
     ".   dn  .";
-  grid-template-columns: repeat(3, 80px);
-  grid-template-rows:    repeat(3, 80px);
-  gap: 6px;
+  grid-template-columns: repeat(3, 40px);
+  grid-template-rows:    repeat(3, 40px);
+  gap: 4px;
 }
 .cdp-up  { grid-area: up;  }
 .cdp-lft { grid-area: lft; }
@@ -238,24 +252,26 @@ input[type="range"] {
 .cdp-dn  { grid-area: dn;  }
 
 .cdp {
-  border-radius: 14px;
-  background: #161b22;
-  border: 1px solid #30363d;
+  border-radius: 10px;
+  background: #161b22cc;
+  border: 1px solid #30363dcc;
+  color: #e6edf3;
   font-size: 0;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; touch-action: manipulation;
+  backdrop-filter: blur(2px);
   transition: background 0.1s, transform 0.1s;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
 }
-.cdp::before        { font-size: 28px; line-height: 1; pointer-events: none; }
+.cdp::before        { font-size: 18px; line-height: 1; pointer-events: none; }
 .cdp-up::before     { content: '⬆'; }
 .cdp-lft::before    { content: '⬅'; }
 .cdp-rgt::before    { content: '➡'; }
 .cdp-dn::before     { content: '⬇'; }
-.cdp-ctr::before    { content: '◎'; font-size: 22px; }
+.cdp-ctr::before    { content: '◎'; font-size: 15px; }
 
 .cdp.active, .cdp:active { background: #388bfd; transform: scale(0.93); }
-.cdp-ctr { background: #21262d !important; border-color: #388bfd !important; }
+.cdp-ctr { background: #21262dcc !important; border-color: #388bfdcc !important; }
 .cdp-ctr.active, .cdp-ctr:active { background: #388bfd !important; }

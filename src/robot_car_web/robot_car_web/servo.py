@@ -27,6 +27,14 @@ TILT_PULSE_MAX  = 2400
 PAN_MIN,  PAN_MAX  =   0, 180
 TILT_MIN, TILT_MAX =  45, 135
 
+# ── Mechanical calibration offsets ──────────────────────────────────────────
+# Added to the logical angle only when computing the physical pulse width, so
+# the commanded "90° = center" actually points straight ahead. The logical
+# angle range, clamping, and UI readout are unaffected. Positive PAN_OFFSET
+# aims the camera further to one side — tune the value and sign on hardware.
+PAN_OFFSET  = 12.0     # deg — hardware-calibrated: 90° + 12° aims pan dead-center
+TILT_OFFSET = 0.0      # deg
+
 SETTLE_PULSES = 5      # pulses per move — enough to reach position, then silent
 
 try:
@@ -37,8 +45,10 @@ except ImportError:
     log.warning('pigpio not installed — servo disabled')
 
 
-def _angle_to_pw(angle: float, pw_min: int, pw_max: int) -> int:
-    angle = max(0.0, min(180.0, float(angle)))
+def _angle_to_pw(angle: float, pw_min: int, pw_max: int, offset: float = 0.0) -> int:
+    # Apply the mechanical calibration offset, then clamp to the valid angle
+    # range so an offset near a limit can't push the pulse out of bounds.
+    angle = max(0.0, min(180.0, float(angle) + offset))
     return int(pw_min + (angle / 180.0) * (pw_max - pw_min))
 
 
@@ -104,8 +114,8 @@ class ServoController:
                 continue
 
             pan_angle, tilt_angle = cmd
-            pan_pw  = _angle_to_pw(pan_angle,  PAN_PULSE_MIN,  PAN_PULSE_MAX)
-            tilt_pw = _angle_to_pw(tilt_angle, TILT_PULSE_MIN, TILT_PULSE_MAX)
+            pan_pw  = _angle_to_pw(pan_angle,  PAN_PULSE_MIN,  PAN_PULSE_MAX,  PAN_OFFSET)
+            tilt_pw = _angle_to_pw(tilt_angle, TILT_PULSE_MIN, TILT_PULSE_MAX, TILT_OFFSET)
 
             # Burst: send pulses to reach position
             for _ in range(SETTLE_PULSES):

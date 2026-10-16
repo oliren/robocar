@@ -21,18 +21,34 @@
         {%- if config.camera_active %}⏳ Starting…{% else %}📷 No camera{% endif -%}
       </span>
     </div>
+
+    {# ── Camera servo d-pad — overlaid on the stream ── #}
+    <div class="cam-dpad" id="cam-dpad">
+      <button class="cdp cdp-up"  id="cdp-up" ></button>
+      <button class="cdp cdp-lft" id="cdp-lft"></button>
+      <button class="cdp cdp-ctr" id="cdp-ctr"></button>
+      <button class="cdp cdp-rgt" id="cdp-rgt"></button>
+      <button class="cdp cdp-dn"  id="cdp-dn" ></button>
+    </div>
   </div>
-  <p class="cam-info" id="cam-info">
-    {{ config.camera_width }}×{{ config.camera_height }}
-    · MJPEG · {{ config.camera_fps }} fps
-  </p>
+
+  <div class="cam-meta">
+    <p class="cam-info" id="cam-info">
+      {{ config.camera_width }}×{{ config.camera_height }}
+      · MJPEG · {{ config.camera_fps }} fps
+    </p>
+    <div class="servo-state">
+      Pan <span class="servo-val" id="sv-pan">{{ config.servo_pan | int }}</span>°
+      &nbsp;·&nbsp;
+      Tilt <span class="servo-val" id="sv-tilt">{{ config.servo_tilt | int }}</span>°
+    </div>
+  </div>
 </div>
 
-{# ── Drive + Camera tabs ── #}
+{# ── Drive tabs ── #}
 <nav class="tabs">
   <button class="tab active" data-tab="joy" >🕹 Joystick</button>
   <button class="tab"        data-tab="dpad">🎮 D-Pad</button>
-  <button class="tab"        data-tab="cam" >📷 Camera</button>
 </nav>
 
 <main class="content">
@@ -55,25 +71,6 @@
       <button class="dp dp-dn"  data-l="-1" data-a="0" ></button>
     </div>
     {% include 'partials/controls_footer.html' %}
-  </section>
-
-  {# ── Camera tab — servo d-pad ── #}
-  <section class="panel hidden" id="pnl-cam">
-
-    <div class="servo-state">
-      Pan <span class="servo-val" id="sv-pan">{{ config.servo_pan | int }}</span>°
-      &nbsp;·&nbsp;
-      Tilt <span class="servo-val" id="sv-tilt">{{ config.servo_tilt | int }}</span>°
-    </div>
-
-    <div class="cam-dpad">
-      <button class="cdp cdp-up"  id="cdp-up" ></button>
-      <button class="cdp cdp-lft" id="cdp-lft"></button>
-      <button class="cdp cdp-ctr" id="cdp-ctr"></button>
-      <button class="cdp cdp-rgt" id="cdp-rgt"></button>
-      <button class="cdp cdp-dn"  id="cdp-dn" ></button>
-    </div>
-
   </section>
 
 </main>

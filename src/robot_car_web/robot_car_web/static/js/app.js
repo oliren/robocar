@@ -220,7 +220,6 @@
         const tab = btn.dataset.tab;
         qAll('.tab')  .forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
         qAll('.panel').forEach(p => p.classList.toggle('hidden',  p.id !== `pnl-${tab}`));
-        if (tab === 'cam') Camera.start();
       })
     );
   }

@@ -44,6 +44,7 @@ and a mobile-friendly web interface. Built on Ubuntu 24.04 + ROS 2 Jazzy.
 | Pulse range | 500–2400 µs (calibrated) |
 | Period | 20 ms (50 Hz) |
 | Center | 90° = 1450 µs |
+| Pan offset | +12° applied in `servo.py` so commanded 90° aims dead-center |
 | Tilt limits | 45°–135° (mechanical safety range) |
 | PWM method | pigpiod DMA burst (5 pulses per command, then stop — silent hold) |
 
@@ -87,3 +88,4 @@ gpu_mem=128
 | camera_ros build | Abandoned | `libcamera::Span` deprecation + cv_bridge OpenCV deps — picamera2 subprocess used instead |
 | RPi 3B RAM | 1 GB | colcon builds use `--parallel-workers 1`; libcamera built with `ninja -j1` |
 | SPI disabled | Required | `dtparam=spi=off` — SPI claimed GPIO 7 (pan servo pin) |
+| Pan centers right | Calibrated | `PAN_OFFSET = 12°` in `servo.py` (`_angle_to_pw`) corrects it. Needed because the ROS node drives via pigpiod `set_servo_pulsewidth` (DMA, tick-quantized) while the standalone lgpio calibration script bit-bangs the pulse directly — same 1450 µs target, slightly different physical output. If servo.py ever switches away from pigpio, re-check/zero this offset |
