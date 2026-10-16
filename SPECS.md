@@ -45,7 +45,7 @@ and a mobile-friendly web interface. Built on Ubuntu 24.04 + ROS 2 Jazzy.
 | Period | 20 ms (50 Hz) |
 | Center | 90° = 1450 µs |
 | Tilt limits | 45°–135° (mechanical safety range) |
-| PWM method | lgpio bit-bang burst (5 pulses per command, then stop) |
+| PWM method | pigpiod DMA burst (5 pulses per command, then stop — silent hold) |
 
 ### Other Peripherals (on board, not yet integrated)
 | Component | GPIO |

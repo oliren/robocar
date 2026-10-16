@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Camera pan-tilt servo controller — lgpio bit-bang, pulse-burst strategy.
+Camera pan-tilt servo controller — pigpiod burst-then-stop.
 
-Sends N pulses to reach target angle, then stops.
-Servo holds position mechanically — silent between commands, no jitter.
+Strategy: send N pulses via pigpiod, then stop (pulsewidth=0).
+Servo holds position mechanically — silent, no jitter.
 
 GPIO 7 = pan  (base / horizontal)
 GPIO 6 = tilt (camera / vertical)
@@ -16,72 +16,59 @@ import time
 
 log = logging.getLogger(__name__)
 
-# ── Pin assignment (BCM) ──────────────────────────────────────────────────────
 SERVO_PAN_GPIO  = 7
 SERVO_TILT_GPIO = 6
 
-# ── Calibrated pulse range (µs) ───────────────────────────────────────────────
 PAN_PULSE_MIN   = 500
 PAN_PULSE_MAX   = 2400
 TILT_PULSE_MIN  = 500
 TILT_PULSE_MAX  = 2400
 
-# ── Angle limits ──────────────────────────────────────────────────────────────
 PAN_MIN,  PAN_MAX  =   0, 180
 TILT_MIN, TILT_MAX =  45, 135
 
-# ── Pulses sent per move command ──────────────────────────────────────────────
-SETTLE_PULSES = 5
+SETTLE_PULSES = 5      # pulses per move — enough to reach position, then silent
 
 try:
-    import lgpio
-    _LGPIO_AVAILABLE = True
+    import pigpio
+    _PIGPIO_AVAILABLE = True
 except ImportError:
-    _LGPIO_AVAILABLE = False
-    log.warning('lgpio not available — servo disabled')
+    _PIGPIO_AVAILABLE = False
+    log.warning('pigpio not installed — servo disabled')
 
 
-def _angle_to_pw(angle: float, pw_min: int, pw_max: int) -> float:
+def _angle_to_pw(angle: float, pw_min: int, pw_max: int) -> int:
     angle = max(0.0, min(180.0, float(angle)))
-    return pw_min + (angle / 180.0) * (pw_max - pw_min)
-
-
-def _send_pulses(handle, gpio: int, pw_us: float, count: int) -> None:
-    hi = pw_us / 1_000_000.0
-    lo = 0.020 - hi
-    for _ in range(count):
-        lgpio.gpio_write(handle, gpio, 1)
-        time.sleep(hi)
-        lgpio.gpio_write(handle, gpio, 0)
-        time.sleep(lo)
-    lgpio.gpio_write(handle, gpio, 0)   # stop — servo holds silently
+    return int(pw_min + (angle / 180.0) * (pw_max - pw_min))
 
 
 class ServoController:
     """
-    Thread-safe servo controller.
+    Thread-safe servo controller backed by pigpiod.
 
-    A background worker thread serialises pulse bursts so the
-    async event loop is never blocked.
+    Uses burst-then-stop: sends SETTLE_PULSES pulses to reach
+    target angle, then sets pulsewidth=0. Servo holds silently.
     """
 
     def __init__(self) -> None:
         self._lock    = threading.Lock()
-        self._handle  = None
+        self._pi      = None
         self._pan     = 90.0
         self._tilt    = 90.0
         self._pending: tuple[float, float] | None = None
         self._event   = threading.Event()
         self._stop    = threading.Event()
 
-        if not _LGPIO_AVAILABLE:
+        if not _PIGPIO_AVAILABLE:
             return
 
         try:
-            h = lgpio.gpiochip_open(0)
-            lgpio.gpio_claim_output(h, SERVO_PAN_GPIO,  0)
-            lgpio.gpio_claim_output(h, SERVO_TILT_GPIO, 0)
-            self._handle = h
+            pi = pigpio.pi()
+            if not pi.connected:
+                log.warning('pigpiod not running — start with: sudo systemctl start pigpiod')
+                return
+
+            self._pi = pi
 
             self._worker = threading.Thread(
                 target=self._run,
@@ -93,20 +80,19 @@ class ServoController:
             self.center()
 
             log.info(
-                'ServoController ready — pan=GPIO%d tilt=GPIO%d',
+                'ServoController ready (pigpiod) — pan=GPIO%d tilt=GPIO%d',
                 SERVO_PAN_GPIO, SERVO_TILT_GPIO,
             )
 
         except Exception as exc:
             log.warning('Servo init failed: %s', exc)
-            self._handle = None
+            self._pi = None
 
-    # ── Worker thread ─────────────────────────────────────────────────────────
+    # ── Worker ────────────────────────────────────────────────────────────────
 
     def _run(self) -> None:
         while not self._stop.is_set():
-            triggered = self._event.wait(timeout=0.5)
-            if not triggered:
+            if not self._event.wait(timeout=0.5):
                 continue
             self._event.clear()
 
@@ -114,33 +100,25 @@ class ServoController:
                 cmd = self._pending
                 self._pending = None
 
-            if cmd is None or self._handle is None:
+            if cmd is None or self._pi is None:
                 continue
 
             pan_angle, tilt_angle = cmd
             pan_pw  = _angle_to_pw(pan_angle,  PAN_PULSE_MIN,  PAN_PULSE_MAX)
             tilt_pw = _angle_to_pw(tilt_angle, TILT_PULSE_MIN, TILT_PULSE_MAX)
 
+            # Burst: send pulses to reach position
             for _ in range(SETTLE_PULSES):
                 if self._stop.is_set() or self._event.is_set():
                     break
-                # Pan pulse
-                lgpio.gpio_write(self._handle, SERVO_PAN_GPIO, 1)
-                time.sleep(pan_pw / 1_000_000.0)
-                lgpio.gpio_write(self._handle, SERVO_PAN_GPIO, 0)
-                # Tilt pulse
-                lgpio.gpio_write(self._handle, SERVO_TILT_GPIO, 1)
-                time.sleep(tilt_pw / 1_000_000.0)
-                lgpio.gpio_write(self._handle, SERVO_TILT_GPIO, 0)
-                # Remainder of 20ms period
-                elapsed = (pan_pw + tilt_pw) / 1_000_000.0
-                remainder = 0.020 - elapsed
-                if remainder > 0:
-                    time.sleep(remainder)
+                self._pi.set_servo_pulsewidth(SERVO_PAN_GPIO,  pan_pw)
+                self._pi.set_servo_pulsewidth(SERVO_TILT_GPIO, tilt_pw)
+                time.sleep(0.02)   # one 50Hz period
 
-            if self._handle is not None:
-                lgpio.gpio_write(self._handle, SERVO_PAN_GPIO,  0)
-                lgpio.gpio_write(self._handle, SERVO_TILT_GPIO, 0)
+            # Stop — servo holds silently
+            if self._pi is not None:
+                self._pi.set_servo_pulsewidth(SERVO_PAN_GPIO,  0)
+                self._pi.set_servo_pulsewidth(SERVO_TILT_GPIO, 0)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -171,19 +149,19 @@ class ServoController:
         self._event.set()
         if hasattr(self, '_worker'):
             self._worker.join(timeout=2.0)
-        if self._handle is not None:
+        if self._pi is not None:
             try:
-                lgpio.gpio_write(self._handle, SERVO_PAN_GPIO,  0)
-                lgpio.gpio_write(self._handle, SERVO_TILT_GPIO, 0)
-                lgpio.gpiochip_close(self._handle)
+                self._pi.set_servo_pulsewidth(SERVO_PAN_GPIO,  0)
+                self._pi.set_servo_pulsewidth(SERVO_TILT_GPIO, 0)
+                self._pi.stop()
             except Exception as exc:
                 log.debug('Servo stop: %s', exc)
-            self._handle = None
+            self._pi = None
         log.info('ServoController stopped')
 
     @property
     def active(self) -> bool:
-        return self._handle is not None
+        return self._pi is not None
 
     @property
     def status(self) -> dict:

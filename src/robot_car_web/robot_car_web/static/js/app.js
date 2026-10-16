@@ -40,7 +40,7 @@
   const Servo = {
     pan:      cfg.servo_pan  ?? 90,
     tilt:     cfg.servo_tilt ?? 90,
-    STEP:     10,
+    STEP:     45,
     PAN_MIN:  0,   PAN_MAX:  180,
     TILT_MIN: 45,  TILT_MAX: 135,
 
@@ -50,12 +50,16 @@
       el('sv-tilt').textContent = Math.round(this.tilt);
     },
 
-    panLeft()   { this.pan  = Math.max(this.PAN_MIN,  this.pan  - this.STEP); this._send(); },
-    panRight()  { this.pan  = Math.min(this.PAN_MAX,  this.pan  + this.STEP); this._send(); },
-    tiltUp()    { this.tilt = Math.min(this.TILT_MAX, this.tilt + this.STEP); this._send(); },
-    tiltDown()  { this.tilt = Math.max(this.TILT_MIN, this.tilt - this.STEP); this._send(); },
-    center()    { this.pan = 90; this.tilt = 90; WS.send({ type: 'servo_center' });
-                  el('sv-pan').textContent = '90'; el('sv-tilt').textContent = '90'; },
+    panLeft()  { this.pan  = Math.max(this.PAN_MIN,  this.pan  - this.STEP); this._send(); },
+    panRight() { this.pan  = Math.min(this.PAN_MAX,  this.pan  + this.STEP); this._send(); },
+    tiltUp()   { this.tilt = Math.min(this.TILT_MAX, this.tilt + this.STEP); this._send(); },
+    tiltDown() { this.tilt = Math.max(this.TILT_MIN, this.tilt - this.STEP); this._send(); },
+    center()   {
+      this.pan = 90; this.tilt = 90;
+      WS.send({ type: 'servo_center' });
+      el('sv-pan') .textContent = '90';
+      el('sv-tilt').textContent = '90';
+    },
   };
 
   // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -139,17 +143,16 @@
   // ── Camera D-Pad ───────────────────────────────────────────────────────────
   function initCamDPad() {
     const bindings = [
-      ['cdp-up',  () => Servo.tiltUp()   ],
-      ['cdp-dn',  () => Servo.tiltDown() ],
-      ['cdp-lft', () => Servo.panLeft()  ],
-      ['cdp-rgt', () => Servo.panRight() ],
-      ['cdp-ctr', () => Servo.center()   ],
+      ['cdp-up',  () => Servo.tiltDown()],
+      ['cdp-dn',  () => Servo.tiltUp()  ],
+      ['cdp-lft', () => Servo.panRight()],
+      ['cdp-rgt', () => Servo.panLeft() ],
+      ['cdp-ctr', () => Servo.center()  ],
     ];
 
     bindings.forEach(([id, action]) => {
       const btn = el(id);
       if (!btn) return;
-
       btn.addEventListener('pointerdown', e => {
         e.preventDefault();
         btn.setPointerCapture(e.pointerId);
@@ -161,6 +164,7 @@
       );
     });
   }
+
 
   // ── Speed ──────────────────────────────────────────────────────────────────
   function initSpeed() {
@@ -229,5 +233,8 @@
   initCamDPad();
   initSpeed();
   Camera.start();
+
+  el('sv-pan') .textContent = Math.round(cfg.servo_pan  ?? 90);
+  el('sv-tilt').textContent = Math.round(cfg.servo_tilt ?? 90);
 
 })();
