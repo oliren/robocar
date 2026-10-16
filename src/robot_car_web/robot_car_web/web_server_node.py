@@ -43,6 +43,10 @@ _camera:      Optional[CameraStream]     = None
 _servo:       Optional[ServoController]  = None
 _spin_thread: Optional[threading.Thread] = None
 
+# Set during app shutdown so long-lived connections (MJPEG stream, WebSocket)
+# break out of their infinite loops instead of blocking a graceful shutdown.
+_shutdown = asyncio.Event()
+
 
 # ── ROS spin helper ───────────────────────────────────────────────────────────
 def _ros_spin(node: WebControlNode) -> None:
@@ -73,6 +77,7 @@ async def lifespan(app: FastAPI):
     yield
 
     log.info('Shutting down…')
+    _shutdown.set()   # release long-lived loops (MJPEG stream, WebSocket)
 
     if _node and rclpy.ok():
         _node.stop()
@@ -138,7 +143,7 @@ async def servo_status():
 async def _mjpeg_generator():
     yield b'--mjpegboundary\r\n'
     try:
-        while True:
+        while not _shutdown.is_set():
             if _camera is None or not _camera.active:
                 await asyncio.sleep(0.5)
                 continue
@@ -171,9 +176,20 @@ async def video_feed():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     log.debug('Client connected: %s', ws.client)
+    shutdown_wait = asyncio.ensure_future(_shutdown.wait())
     try:
-        while True:
-            data = json.loads(await ws.receive_text())
+        while not _shutdown.is_set():
+            # Race the client message against server shutdown so a restart
+            # isn't blocked by this idle receive while a browser is connected.
+            recv = asyncio.ensure_future(ws.receive_text())
+            done, _ = await asyncio.wait(
+                {recv, shutdown_wait},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if recv not in done:
+                recv.cancel()
+                break
+            data = json.loads(recv.result())
             match data.get('type'):
 
                 case 'cmd_vel':
@@ -202,6 +218,7 @@ async def ws_endpoint(ws: WebSocket):
     except (WebSocketDisconnect, Exception) as exc:
         log.debug('Client disconnected: %s', exc)
     finally:
+        shutdown_wait.cancel()
         if _node:
             _node.stop()
 
@@ -230,7 +247,15 @@ def main(args=None):
     print(f'  🌐  http://{ip}:8080\n')
 
     try:
-        uvicorn.run(app, host='0.0.0.0', port=8080, log_level='warning')
+        uvicorn.run(
+            app,
+            host='0.0.0.0',
+            port=8080,
+            log_level='warning',
+            # Force-drop any still-open connections a few seconds after
+            # SIGTERM so a restart with a browser attached doesn't hang.
+            timeout_graceful_shutdown=5,
+        )
     except KeyboardInterrupt:
         pass
 

@@ -34,3 +34,8 @@ htmlcov/
 # ─── OS ──────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ─── lgpio runtime artifacts ─────────────────────────────────────
+# lgpio drops a notification pipe (.lgd-nfy<N>) in the process cwd on
+# import; the service runs from the workspace root, so they land here.
+.lgd-nfy*

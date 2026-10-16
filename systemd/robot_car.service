@@ -1,0 +1,40 @@
+[Unit]
+Description=Robot Car (ROS 2) — motor driver + web server
+# Start only once the network is up (web server binds a port) and pigpiod
+# is running (the servo controller connects to it).
+After=network-online.target pigpiod.service
+Wants=network-online.target
+Requires=pigpiod.service
+
+[Service]
+Type=simple
+User=oliren
+Group=oliren
+
+# Run from the workspace root. Without this, systemd starts the service
+# with cwd '/', which oliren can't write to — and lgpio creates its
+# notification pipe (.lgd-nfy<N>) in the current directory on import,
+# so the motor driver dies with FileNotFoundError on '//.lgd-nfy0'.
+WorkingDirectory=/home/oliren/robot_ws
+
+# ROS 2 needs a writable home for logging; make it explicit for systemd.
+Environment=HOME=/home/oliren
+# Pick a stable domain id so the two nodes always find each other.
+Environment=ROS_DOMAIN_ID=0
+
+# systemd does not run a login shell, so ROS and the workspace are not on
+# PATH. Source both, then launch. 'exec' replaces the shell so systemd
+# tracks the real ros2 process for restarts and shutdown.
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /home/oliren/robot_ws/install/setup.bash && exec ros2 launch robot_car_bringup robot_car.launch.py'
+
+Restart=on-failure
+RestartSec=3
+
+# Shutdown backstop: if the app doesn't exit within this window after
+# SIGTERM, systemd SIGKILLs it. The app force-closes connections at ~5s
+# (uvicorn timeout_graceful_shutdown), so 15s leaves comfortable margin.
+TimeoutStopSec=15
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
