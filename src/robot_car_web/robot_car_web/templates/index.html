@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Robot Car Control{% endblock %}
+
+{% block body %}
+
+<header class="hdr">
+  <h1>🤖 Robot Car</h1>
+  <div class="st">
+    <div class="dot" id="dot"></div>
+    <span id="st-txt">Disconnected</span>
+  </div>
+</header>
+
+{# ── Camera — always visible ── #}
+<div class="cam-section">
+  <div class="cam-wrap">
+    <img id="cam-img" alt="Camera stream"
+         onerror="Camera.onError()" onload="Camera.onLoad()">
+    <div class="cam-overlay" id="cam-overlay">
+      <span id="cam-msg">
+        {%- if config.camera_active %}⏳ Starting…{% else %}📷 No camera{% endif -%}
+      </span>
+    </div>
+  </div>
+  <p class="cam-info" id="cam-info">
+    {{ config.camera_width }}×{{ config.camera_height }}
+    · MJPEG · {{ config.camera_fps }} fps
+  </p>
+</div>
+
+{# ── Drive + Camera tabs ── #}
+<nav class="tabs">
+  <button class="tab active" data-tab="joy" >🕹 Joystick</button>
+  <button class="tab"        data-tab="dpad">🎮 D-Pad</button>
+  <button class="tab"        data-tab="cam" >📷 Camera</button>
+</nav>
+
+<main class="content">
+
+  {# ── Joystick tab ── #}
+  <section class="panel" id="pnl-joy">
+    <div class="joy-zone" id="joy">
+      <div class="joy-thumb" id="thumb"></div>
+    </div>
+    {% include 'partials/controls_footer.html' %}
+  </section>
+
+  {# ── D-Pad tab ── #}
+  <section class="panel hidden" id="pnl-dpad">
+    <div class="dpad">
+      <button class="dp dp-up"  data-l="1"  data-a="0" ></button>
+      <button class="dp dp-lft" data-l="0"  data-a="1" ></button>
+      <button class="dp dp-stp" data-l="0"  data-a="0" ></button>
+      <button class="dp dp-rgt" data-l="0"  data-a="-1"></button>
+      <button class="dp dp-dn"  data-l="-1" data-a="0" ></button>
+    </div>
+    {% include 'partials/controls_footer.html' %}
+  </section>
+
+  {# ── Camera tab — servo d-pad ── #}
+  <section class="panel hidden" id="pnl-cam">
+
+    <div class="servo-state">
+      Pan <span class="servo-val" id="sv-pan">{{ config.servo_pan | int }}</span>°
+      &nbsp;·&nbsp;
+      Tilt <span class="servo-val" id="sv-tilt">{{ config.servo_tilt | int }}</span>°
+    </div>
+
+    <div class="cam-dpad">
+      <button class="cdp cdp-up"  id="cdp-up" ></button>
+      <button class="cdp cdp-lft" id="cdp-lft"></button>
+      <button class="cdp cdp-ctr" id="cdp-ctr"></button>
+      <button class="cdp cdp-rgt" id="cdp-rgt"></button>
+      <button class="cdp cdp-dn"  id="cdp-dn" ></button>
+    </div>
+
+  </section>
+
+</main>
+{% endblock %}
+
+{% block config %}
+<script>
+  window.APP_CONFIG = {{ config | tojson }};
+</script>
+{% endblock %}
+
